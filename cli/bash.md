@@ -42,3 +42,7 @@ string="abcdefg"
 # 使用 awk 指令處理字串
 echo "$(awk '{print substr($0, 1, length($0)-1)}' <<< "$string")"  # 輸出 "abcdef"
 ```
+
+
+## 相關文件
+[簡明 Linux Shell Script 入門教學](https://blog.techbridge.cc/2019/11/15/linux-shell-script-tutorial/)
