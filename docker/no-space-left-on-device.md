@@ -1,5 +1,8 @@
+# no space left on device
+
 在建立新專案時，docker 一直跳出這個訊息
-```
+
+```text
 docker: write /var/lib/docker/tmp/GetImageBlob1707749401: no space left on device.
 ```
 
@@ -11,7 +14,7 @@ docker: write /var/lib/docker/tmp/GetImageBlob1707749401: no space left on devic
 
 除了 containers、images、volumes外，還有 system 也是會佔空間的
 
-```
+```text
 docker system prune
 ```
 

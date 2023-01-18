@@ -1,10 +1,10 @@
-## 紀錄模型的事件
+# 紀錄模型的事件
 
 在模型內引用 `Spatie\Activitylog\Traits\LogsActivity` 這個 trait, 讓套件自動在模型的 `created`、`updated`、`deleted` 的事件中做紀錄
 
 同時可透過 `getActivitylogOptions` 函式來控制需要紀錄的屬性
 
-```
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -26,21 +26,25 @@ class NewsItem extends Model
 }
 ```
 
-### 紀錄的基本設定
+## 紀錄的基本設定
 
 `logFillable` 能紀錄所有設定在 $fillable 中的屬性
-```
+
+```php
 LogOptions::defaults()->logFillable();
 ```
 
 或是使用 `logUnguarded` 來紀錄不在 $guarded 中的屬性
-```
+
+```php
 LogOptions::defaults()->logUnguarded();
 ```
 
 ### 記錄資料的基本樣式
+
 當產生一筆記錄後，會出現以下資料
-```
+
+```php
 $newsItem = NewsItem::create([
    'name' => 'original name',
    'text' => 'Lorum'
@@ -53,8 +57,10 @@ $activity->description; //returns 'created'
 $activity->subject; //returns the instance of NewsItem that was created
 $activity->changes; //returns ['attributes' => ['name' => 'original name', 'text' => 'Lorum']];
 ```
+
 然後更改資料後
-```
+
+```php
 $newsItem->name = 'updated name';
 $newsItem->save();
 
@@ -64,8 +70,10 @@ $activity = Activity::all()->last();
 $activity->description; //returns 'updated'
 $activity->subject; //returns the instance of NewsItem that was created
 ```
+
 在呼叫 $activity->changes 時會得到這個陣列
-```
+
+```php
 [
    'attributes' => [
         'name' => 'updated name',
@@ -79,8 +87,10 @@ $activity->subject; //returns the instance of NewsItem that was created
 ```
 
 ### 自定觸發的事件
+
 可使用 `static $recordEvents` 設定觸發的事件
-```
+
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -94,10 +104,12 @@ class NewsItem extends Model
 ```
 
 ### 自定說明
+
 在執行紀錄時，會自動產生記錄說明。也可透過 `->setDescriptionForEvent()` ，來自定想要產生的說明
 
 但在 callback 中能拿到的只有 $eventName 而以，所以要怎麼用就看個人創意了
-```
+
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -117,8 +129,10 @@ class NewsItem extends Model
 ```
 
 ### 自定 log_name
+
 使用 `useLogName` 能變更紀錄時的 log_name
-```
+
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -136,12 +150,14 @@ class NewsItem extends Model
 ```
 
 ### 略過某些屬性
+
 `dontLogIfAttributesChangedOnly` 可用來設定要跳過不紀錄的屬性
 
 預設 `updated_at` 是會紀錄的屬性，但會觸發紀錄的行為
 
 所以可以把 `updated_at` 放進 `dontLogIfAttributesChangedOnly` 來避免觸發紀錄
-```
+
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -162,9 +178,10 @@ class NewsItem extends Model
 ```
 
 ### 只紀錄有更改的屬性
+
 `->logOnly()` 是會紀錄每個設定在裡面的屬性，而 `->logOnlyDirty()` 是只紀錄有變更的屬性
 
-```
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -185,9 +202,10 @@ class NewsItem extends Model
 ```
 
 ### 紀錄關聯的模型或 json 資料
+
 可以使用 `.` 來紀錄關聯的模型，或用 `->` 來紀錄 json 資料
 
-```
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -210,7 +228,8 @@ class NewsItem extends Model
     }
 }
 ```
-```
+
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -234,10 +253,12 @@ class NewsItem extends Model
 ```
 
 ### 防止存到空記錄
+
 當執行完一堆略過的行為，要紀錄的屬性可能已經沒了，變成空記錄
 
 這時可以使用 `dontSubmitEmptyLogs` 來結束後續的儲存，避免儲了一筆空記錄
-```
+
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -261,12 +282,14 @@ class NewsItem extends Model
 ### 使用者的行為
 
 套件有提供 `CausesActivity` 讓 User 查詢之前的相關行為
-```
+
+```php
 \Auth::user()->actions;
 ```
 
 ### 停止/啟用記錄
-```
+
+```php
 $newsItem = NewsItem::create([
    'name' => 'original name',
    'text' => 'Lorum'
@@ -277,10 +300,12 @@ $newsItem->disableLogging();
 
 $newsItem->update(['name' => 'The new name is not logged']);
 ```
+
 然後可再呼叫 `enableLogging` 再次啟動記錄行為
 
 也可以使用 `withoutLogs()`
-```
+
+```php
 activity()->withoutLogs(function () {
     // ...
 });
@@ -289,7 +314,8 @@ activity()->withoutLogs(function () {
 ### 完成記錄前的事件
 
 建立 `tapActivity()` 函式，能在記錄完成之前再執行一些事情
-```
+
+```php
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\Contracts\Activity;
@@ -306,4 +332,3 @@ class NewsItem extends Model
     }
 }
 ```
-

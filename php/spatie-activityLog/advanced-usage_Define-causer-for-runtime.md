@@ -1,5 +1,6 @@
-## 在執行時期定義觸發者
-```
+# 在執行時期定義觸發者
+
+```php
 // in a queue job or controller
 
 use Spatie\Activitylog\Facades\CauserResolver;
@@ -16,7 +17,9 @@ $product->update(['name' => 'New name']);
 Activity::all()->last()->causer; // Product Model
 Activity::all()->last()->causer->id; // Product#1 Owner
 ```
+
 或是透過 `resolver`
-```
+
+```php
 CauserResolver::resolve(fn() => User::find(2))
 ```

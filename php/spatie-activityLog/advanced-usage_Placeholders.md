@@ -1,8 +1,10 @@
-## Using Placeholders
+# Using Placeholders
+
 在設定上有 `:subject`、`:causer`、`:properties` 這三種參數能使用
 
 然後這種設定方式`無法`在先前提到的 `LogActivity` 中使用
-```
+
+```php
 activity()
     ->performedOn($article)
     ->causedBy($user)
