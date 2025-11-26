@@ -110,28 +110,37 @@
         oscillator.start(now);
         oscillator.stop(now + 0.1);
     }
-
+    
     function playMergeSound() {
         if (!audioEnabled || !audioCtx) return;
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
-
+        
         oscillator.type = 'triangle';
         const now = audioCtx.currentTime;
         oscillator.frequency.setValueAtTime(200, now);
-        oscillator.frequency.linearRampToValueAtTime(350, now + 0.08);
-
+        oscillator.frequency.linearRampToValueAtTime(350, now + 0.08); 
+        
         gainNode.gain.setValueAtTime(0.05, now);
         gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-
+        
         oscillator.start(now);
         oscillator.stop(now + 0.08);
     }
 
     function random(min, max) {
         return Math.random() * (max - min) + min;
+    }
+
+    // --- 水流場（新增）：依 y 與時間改變的柔和流速 ---
+    function sampleFlow(x, y) {
+        const t = performance.now() * 0.001;
+        const s = 0.004; // 空間頻率
+        const fx = Math.sin(y * s + t * 1.5) * 0.3 + Math.sin(x * s * 0.7 + t * 0.8) * 0.15;
+        const fy = Math.cos(x * s + t * 1.2) * 0.1;
+        return { fx, fy };
     }
 
     // --- 漣漪 ---
@@ -158,99 +167,84 @@
         }
     }
 
-    // --- 氣泡類別（加入水流形變／搖晃）---
+    // --- 氣泡類別 ---
     class Bubble {
         constructor(x, y, size = null) {
             this.startX = x !== undefined ? x : random(0, width);
-            this.startY = y !== undefined ? y : random(0, height);
-
+            this.startY = y !== undefined ? y : random(height * 0.6, height); // 稍偏底部生成
+            
             this.x = this.startX;
             this.y = this.startY;
-
-            this.depth = size ? 1 : 0;
+            
+            this.depth = size ? 1 : 0; 
             this.targetSize = size ? size : random(10, 60);
-
-            // 上升速度
-            this.riseSpeed = 0.004 + (this.targetSize * 0.0001);
-            // 搖擺（視為水流背景場）
-            this.swaySpeed = 0.05 - (this.targetSize * 0.0005);
-            this.swayRange = 30 - (this.targetSize * 0.3);
+            
+            this.riseSpeed = 0.004 + (this.targetSize * 0.0001); 
+            this.swaySpeed = 0.05 - (this.targetSize * 0.0005); 
+            this.swayRange = 30 - (this.targetSize * 0.3); 
             this.swayOffset = random(0, 100);
 
             this.onSurface = size ? true : false;
-            this.surfaceLife = random(60, 300);
-
-            // 水面漂移速度
+            this.surfaceLife = random(60, 300); 
+            
             this.driftX = random(-0.2, 0.2);
             this.driftY = random(-0.2, 0.2);
 
             this.life = true;
             this.currentRadius = 0;
 
-            // === 新增：物理感形變參數 ===
-            this.deform = 0;                     // 0 ~ 0.6，越大越扁
-            this.wobblePhase = random(0, Math.PI * 2);
-            this.wobbleSpeed = random(0.15, 0.3);
-            this.angle = random(-Math.PI, Math.PI);   // 泡泡橢圓的旋轉角
+            // 物理用：記錄速度與搖晃相位（新增）
             this.prevX = this.x;
             this.prevY = this.y;
+            this.vx = 0;
+            this.vy = 0;
+            this.wobblePhase = random(0, Math.PI * 2);
         }
 
         update() {
             if (!this.onSurface) {
-                // === 上升階段 ===
-                // 紀錄前一幀位置，用來估算速度與剪切
-                const oldX = this.x;
-                const oldY = this.y;
-
+                // === 上升階段：原本的深度＋搖擺 ===
                 this.depth += this.riseSpeed;
-
-                // 背景水流：以時間＋初始座標生成平滑噪聲
-                const t = Date.now() * 0.001;
-                const flowNoise = Math.sin(t * this.swaySpeed * 6 + this.swayOffset * 0.7) *
-                                  Math.cos(t * this.swaySpeed * 4 + this.startY * 0.01);
-
-                const sway = flowNoise * this.swayRange;
+                const sway = Math.sin(Date.now() * this.swaySpeed * 0.05 + this.swayOffset) * this.swayRange;
                 this.x = this.startX + sway * this.depth;
                 this.y = this.startY + (sway * 0.5) * this.depth;
 
+                // === 水流場作用（新增）：在原路徑上再被水流推一下 ===
+                const flow = sampleFlow(this.x, this.y);
+                this.x += flow.fx;
+                this.y += flow.fy * 0.5; // 垂直流速稍微弱一點，避免破壞上浮感
+
+                // 到達水面（深度＝1）
                 if (this.depth >= 1) {
                     this.depth = 1;
                     this.onSurface = true;
                 }
-
-                // === 依速度與剪切決定形變與轉角 ===
-                const dx = this.x - oldX;
-                const dy = this.y - oldY;
-                const speed = Math.sqrt(dx * dx + dy * dy);
-
-                // 剪切越大（位移變化越快），形變越大，限制在 0~0.6 之間
-                const targetDeform = Math.min(0.6, speed * 0.4);
-                this.deform += (targetDeform - this.deform) * 0.18; // 緩動，像黏彈體
-
-                // 泡泡的長軸略對齊運動方向
-                const targetAngle = Math.atan2(dy, dx || 0.0001);
-                this.angle += (targetAngle - this.angle) * 0.25;
-
-                // 上浮時 wobble 較活躍
-                this.wobblePhase += this.wobbleSpeed;
             } else {
-                // === 水面漂流階段：形變逐漸恢復，搖晃減弱 ===
+                // === 水面漂流階段 ===
                 this.x += this.driftX;
                 this.y += this.driftY;
-                this.surfaceLife--;
 
+                // 水面也受到較弱的水流擾動（新增）
+                const flow = sampleFlow(this.x, this.y);
+                this.x += flow.fx * 0.3;
+                this.y += flow.fy * 0.2;
+                
+                this.surfaceLife--;
+                
                 if (this.x < 0 || this.x > width) this.driftX *= -1;
                 if (this.y < 0 || this.y > height) this.driftY *= -1;
-
-                // 在水面上，泡泡慢慢變回近似圓形
-                this.deform *= 0.94;
-                this.wobblePhase += this.wobbleSpeed * 0.5;
 
                 if (this.surfaceLife <= 0) {
                     this.pop();
                 }
             }
+
+            // === 共用：更新速度向量與搖晃相位（新增） ===
+            this.vx = this.x - this.prevX;
+            this.vy = this.y - this.prevY;
+            this.prevX = this.x;
+            this.prevY = this.y;
+            this.wobblePhase += 0.15;
         }
 
         pop() {
@@ -268,45 +262,47 @@
                 size = this.targetSize * scale;
                 opacity = Math.min(0.8, this.depth * 0.8);
             } else {
-                size = this.targetSize;
+                size = this.targetSize; 
                 opacity = 0.8;
                 if (this.surfaceLife < 20) opacity = random(0.2, 0.8);
             }
 
             if (size < 0.5) return;
+            this.currentRadius = size;
 
-            // === 橢圓形變與搖晃 ===
-            const wobble = Math.sin(this.wobblePhase) * this.deform * 0.5;
+            // === 物理形變：依速度方向與大小拉伸＋搖晃（核心） ===
+            const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+            const maxStretch = this.onSurface ? 0.3 : 0.9;      // 水面較穩，拉伸較小
+            const normalizedSpeed = Math.min(speed / 3, 1);     // 正規化速度
+            let stretch = 1 + normalizedSpeed * maxStretch;     // 基礎拉伸
+            const wobbleStrength = this.onSurface ? 0.1 : 0.25; // 水面搖晃較小
+            const wobble = Math.sin(this.wobblePhase) * wobbleStrength * normalizedSpeed;
+            stretch = Math.max(1, stretch + wobble);            // 只拉長，不壓扁
+            const squash = 1 / stretch;                         // 體積守恆近似
 
-            // 上升時形變較明顯，水面時收斂
-            const deformFactor = this.onSurface ? this.deform * 0.5 : this.deform;
-
-            const rx = size * (1 + deformFactor);           // 橢圓長半徑
-            const ry = size * (1 - deformFactor + wobble);  // 橢圓短半徑 + 微小呼吸
-
-            // 用較大半徑近似碰撞半徑
-            this.currentRadius = Math.max(rx, ry);
+            let angle = Math.atan2(this.vy, this.vx) + Math.PI / 2;
+            if (!isFinite(angle)) angle = 0;
 
             ctx.save();
             ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
+            ctx.rotate(angle);
+            ctx.scale(squash, stretch); // 水平略縮、垂直拉長，形成橢圓泡泡
 
-            // === 內部漸層（以最大半徑建立）===
-            const gradRadius = Math.max(rx, ry);
+            // 以局部座標(0,0) 繪製拉伸前的圓，經由 scale 變成橢圓
+            ctx.beginPath();
+            ctx.arc(0, 0, size, 0, Math.PI * 2);
+
             const gradient = ctx.createRadialGradient(
-                -rx * 0.3, -ry * 0.3, size * 0.1,
-                0, 0, gradRadius
+                -size * 0.3, -size * 0.3, size * 0.1, 
+                0, 0, size
             );
             gradient.addColorStop(0, `rgba(255, 255, 255, ${opacity + 0.2})`);
             gradient.addColorStop(0.5, `rgba(255, 255, 255, ${opacity * 0.3})`);
             gradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
 
-            // 主體
             ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
             ctx.fill();
-
+            
             ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
             ctx.lineWidth = 1;
             ctx.stroke();
@@ -314,7 +310,7 @@
             // 高光
             ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
             ctx.beginPath();
-            ctx.ellipse(-rx * 0.35, -ry * 0.35, rx * 0.2, ry * 0.2, 0, 0, Math.PI * 2);
+            ctx.arc(-size * 0.35, -size * 0.35, size * 0.2, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.restore();
@@ -337,8 +333,8 @@
                     if (dist < minDist) {
                         const overlap = minDist - dist;
 
-                        // 判定是否融合
                         if (overlap > minDist * 0.3 || Math.random() < 0.01) {
+                            
                             const newSize = Math.sqrt(Math.pow(b1.targetSize, 2) + Math.pow(b2.targetSize, 2));
                             const totalSize = b1.targetSize + b2.targetSize;
                             const newX = (b1.x * b1.targetSize + b2.x * b2.targetSize) / totalSize;
@@ -350,6 +346,7 @@
                             const newBubble = new Bubble(newX, newY, newSize);
 
                             const luck = Math.random();
+                            
                             if (luck < 0.3) {
                                 newBubble.surfaceLife = random(0, 10);
                             } else if (luck < 0.6) {
@@ -360,10 +357,9 @@
 
                             bubbles.push(newBubble);
                             playMergeSound();
-                            return;
+                            return; 
                         }
 
-                        // 推擠邏輯
                         const angle = Math.atan2(dy, dx);
                         const pushForce = overlap * 0.05;
                         const moveX = Math.cos(angle) * pushForce;
@@ -373,8 +369,8 @@
                         b1.y -= moveY;
                         b2.x += moveX;
                         b2.y += moveY;
-
-                        if (Math.random() > 0.95) {
+                        
+                        if(Math.random() > 0.95) {
                             b1.driftX = random(-0.2, 0.2);
                             b2.driftX = random(-0.2, 0.2);
                         }
