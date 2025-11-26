@@ -94,15 +94,15 @@
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
 
-        const baseFreq = 1000 - (size * 10); 
-        const safeFreq = Math.max(150, baseFreq); 
+        const baseFreq = 1000 - (size * 10);
+        const safeFreq = Math.max(150, baseFreq);
 
         oscillator.type = 'sine';
         const now = audioCtx.currentTime;
         oscillator.frequency.setValueAtTime(safeFreq, now);
         oscillator.frequency.exponentialRampToValueAtTime(safeFreq * 0.1, now + 0.1);
 
-        const volume = Math.min(0.3, size / 80); 
+        const volume = Math.min(0.3, size / 80);
         gainNode.gain.setValueAtTime(0, now);
         gainNode.gain.linearRampToValueAtTime(volume, now + 0.01);
         gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
@@ -110,22 +110,22 @@
         oscillator.start(now);
         oscillator.stop(now + 0.1);
     }
-    
+
     function playMergeSound() {
         if (!audioEnabled || !audioCtx) return;
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
-        
+
         oscillator.type = 'triangle';
         const now = audioCtx.currentTime;
         oscillator.frequency.setValueAtTime(200, now);
-        oscillator.frequency.linearRampToValueAtTime(350, now + 0.08); 
-        
+        oscillator.frequency.linearRampToValueAtTime(350, now + 0.08);
+
         gainNode.gain.setValueAtTime(0.05, now);
         gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-        
+
         oscillator.start(now);
         oscillator.stop(now + 0.08);
     }
@@ -158,61 +158,94 @@
         }
     }
 
-    // --- 氣泡類別 ---
+    // --- 氣泡類別（加入水流形變／搖晃）---
     class Bubble {
         constructor(x, y, size = null) {
             this.startX = x !== undefined ? x : random(0, width);
             this.startY = y !== undefined ? y : random(0, height);
-            
+
             this.x = this.startX;
             this.y = this.startY;
-            
-            this.depth = size ? 1 : 0; 
+
+            this.depth = size ? 1 : 0;
             this.targetSize = size ? size : random(10, 60);
-            
+
             // 上升速度
-            this.riseSpeed = 0.004 + (this.targetSize * 0.0001); 
-            // 搖擺參數 (只在上升時使用)
-            this.swaySpeed = 0.05 - (this.targetSize * 0.0005); 
-            this.swayRange = 30 - (this.targetSize * 0.3); 
+            this.riseSpeed = 0.004 + (this.targetSize * 0.0001);
+            // 搖擺（視為水流背景場）
+            this.swaySpeed = 0.05 - (this.targetSize * 0.0005);
+            this.swayRange = 30 - (this.targetSize * 0.3);
             this.swayOffset = random(0, 100);
 
             this.onSurface = size ? true : false;
-            // 初始壽命
-            this.surfaceLife = random(60, 300); 
-            
-            // 水平漂移速度
+            this.surfaceLife = random(60, 300);
+
+            // 水面漂移速度
             this.driftX = random(-0.2, 0.2);
             this.driftY = random(-0.2, 0.2);
 
             this.life = true;
-            this.currentRadius = 0; 
+            this.currentRadius = 0;
+
+            // === 新增：物理感形變參數 ===
+            this.deform = 0;                     // 0 ~ 0.6，越大越扁
+            this.wobblePhase = random(0, Math.PI * 2);
+            this.wobbleSpeed = random(0.15, 0.3);
+            this.angle = random(-Math.PI, Math.PI);   // 泡泡橢圓的旋轉角
+            this.prevX = this.x;
+            this.prevY = this.y;
         }
 
         update() {
             if (!this.onSurface) {
                 // === 上升階段 ===
+                // 紀錄前一幀位置，用來估算速度與剪切
+                const oldX = this.x;
+                const oldY = this.y;
+
                 this.depth += this.riseSpeed;
-                const sway = Math.sin(Date.now() * this.swaySpeed * 0.05 + this.swayOffset) * this.swayRange;
+
+                // 背景水流：以時間＋初始座標生成平滑噪聲
+                const t = Date.now() * 0.001;
+                const flowNoise = Math.sin(t * this.swaySpeed * 6 + this.swayOffset * 0.7) *
+                                  Math.cos(t * this.swaySpeed * 4 + this.startY * 0.01);
+
+                const sway = flowNoise * this.swayRange;
                 this.x = this.startX + sway * this.depth;
-                this.y = this.startY + (sway * 0.5) * this.depth; // 這裡有Y軸變動，模擬3D視角
+                this.y = this.startY + (sway * 0.5) * this.depth;
 
                 if (this.depth >= 1) {
                     this.depth = 1;
                     this.onSurface = true;
                 }
+
+                // === 依速度與剪切決定形變與轉角 ===
+                const dx = this.x - oldX;
+                const dy = this.y - oldY;
+                const speed = Math.sqrt(dx * dx + dy * dy);
+
+                // 剪切越大（位移變化越快），形變越大，限制在 0~0.6 之間
+                const targetDeform = Math.min(0.6, speed * 0.4);
+                this.deform += (targetDeform - this.deform) * 0.18; // 緩動，像黏彈體
+
+                // 泡泡的長軸略對齊運動方向
+                const targetAngle = Math.atan2(dy, dx || 0.0001);
+                this.angle += (targetAngle - this.angle) * 0.25;
+
+                // 上浮時 wobble 較活躍
+                this.wobblePhase += this.wobbleSpeed;
             } else {
-                // === 水面漂流階段 ===
-                // 修改：只保留水平漂流 (X, Y)，移除任何模擬 Z 軸的晃動
+                // === 水面漂流階段：形變逐漸恢復，搖晃減弱 ===
                 this.x += this.driftX;
                 this.y += this.driftY;
-                
-                // 壽命倒數
                 this.surfaceLife--;
-                
-                // 邊界反彈
+
                 if (this.x < 0 || this.x > width) this.driftX *= -1;
                 if (this.y < 0 || this.y > height) this.driftY *= -1;
+
+                // 在水面上，泡泡慢慢變回近似圓形
+                this.deform *= 0.94;
+                this.wobblePhase += this.wobbleSpeed * 0.5;
 
                 if (this.surfaceLife <= 0) {
                     this.pop();
@@ -231,48 +264,64 @@
             let opacity = 0;
 
             if (!this.onSurface) {
-                // 上升中：大小隨深度變化
                 const scale = this.depth * this.depth;
                 size = this.targetSize * scale;
                 opacity = Math.min(0.8, this.depth * 0.8);
             } else {
-                // 水面上：固定大小 (移除呼吸效果)
-                size = this.targetSize; 
+                size = this.targetSize;
                 opacity = 0.8;
-                
-                // 壽命快結束時閃爍
                 if (this.surfaceLife < 20) opacity = random(0.2, 0.8);
             }
 
             if (size < 0.5) return;
-            this.currentRadius = size;
 
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+            // === 橢圓形變與搖晃 ===
+            const wobble = Math.sin(this.wobblePhase) * this.deform * 0.5;
 
+            // 上升時形變較明顯，水面時收斂
+            const deformFactor = this.onSurface ? this.deform * 0.5 : this.deform;
+
+            const rx = size * (1 + deformFactor);           // 橢圓長半徑
+            const ry = size * (1 - deformFactor + wobble);  // 橢圓短半徑 + 微小呼吸
+
+            // 用較大半徑近似碰撞半徑
+            this.currentRadius = Math.max(rx, ry);
+
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+
+            // === 內部漸層（以最大半徑建立）===
+            const gradRadius = Math.max(rx, ry);
             const gradient = ctx.createRadialGradient(
-                this.x - size * 0.3, this.y - size * 0.3, size * 0.1, 
-                this.x, this.y, size
+                -rx * 0.3, -ry * 0.3, size * 0.1,
+                0, 0, gradRadius
             );
             gradient.addColorStop(0, `rgba(255, 255, 255, ${opacity + 0.2})`);
             gradient.addColorStop(0.5, `rgba(255, 255, 255, ${opacity * 0.3})`);
             gradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
 
+            // 主體
             ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
             ctx.fill();
-            
+
             ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
             ctx.lineWidth = 1;
             ctx.stroke();
 
+            // 高光
             ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
             ctx.beginPath();
-            ctx.arc(this.x - size * 0.35, this.y - size * 0.35, size * 0.2, 0, Math.PI*2);
+            ctx.ellipse(-rx * 0.35, -ry * 0.35, rx * 0.2, ry * 0.2, 0, 0, Math.PI * 2);
             ctx.fill();
+
+            ctx.restore();
         }
     }
 
-    // --- 碰撞與融合邏輯 (核心修改) ---
+    // --- 碰撞與融合邏輯 ---
     function checkCollisions() {
         for (let i = 0; i < bubbles.length; i++) {
             for (let j = i + 1; j < bubbles.length; j++) {
@@ -288,9 +337,8 @@
                     if (dist < minDist) {
                         const overlap = minDist - dist;
 
-                        // 判定是否融合 (重疊過多 或 隨機發生)
+                        // 判定是否融合
                         if (overlap > minDist * 0.3 || Math.random() < 0.01) {
-                            
                             const newSize = Math.sqrt(Math.pow(b1.targetSize, 2) + Math.pow(b2.targetSize, 2));
                             const totalSize = b1.targetSize + b2.targetSize;
                             const newX = (b1.x * b1.targetSize + b2.x * b2.targetSize) / totalSize;
@@ -301,23 +349,18 @@
 
                             const newBubble = new Bubble(newX, newY, newSize);
 
-                            // === 修改：融合後的壽命不確定性 ===
                             const luck = Math.random();
-                            
                             if (luck < 0.3) {
-                                // 30% 機率：融合失敗/不穩定 -> 幾乎馬上破掉 (0~10幀)
                                 newBubble.surfaceLife = random(0, 10);
                             } else if (luck < 0.6) {
-                                // 30% 機率：變得脆弱 -> 壽命取兩者較短者並減半
                                 newBubble.surfaceLife = Math.min(b1.surfaceLife, b2.surfaceLife) * 0.5;
                             } else {
-                                // 40% 機率：穩定融合 -> 繼承較長壽命
                                 newBubble.surfaceLife = Math.max(b1.surfaceLife, b2.surfaceLife);
                             }
 
                             bubbles.push(newBubble);
                             playMergeSound();
-                            return; 
+                            return;
                         }
 
                         // 推擠邏輯
@@ -330,9 +373,8 @@
                         b1.y -= moveY;
                         b2.x += moveX;
                         b2.y += moveY;
-                        
-                        // 碰撞後輕微改變漂流方向
-                        if(Math.random() > 0.95) {
+
+                        if (Math.random() > 0.95) {
                             b1.driftX = random(-0.2, 0.2);
                             b2.driftX = random(-0.2, 0.2);
                         }
