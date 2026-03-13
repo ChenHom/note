@@ -9,8 +9,7 @@ It watches a directory and automatically runs `git add`, `git commit`, and `git 
 ## Quick start
 
 ```bash
-cd /home/hom/services/knowledge/ai/skills
-./scripts/auto-commit-push.sh /home/hom/services/knowledge/ai/skills 5
+./scripts/auto-commit-push.sh ./ai/skills 5
 ```
 
 Arguments:
