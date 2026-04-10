@@ -1,6 +1,6 @@
 ---
 name: openclaw-cost-control
-description: Use when the user asks how to reduce OpenClaw API costs, improve agent efficiency, or control token usage. Also use when the user wants AI to know it can consult related OpenClaw cost-control notes or project materials. Do not use for unrelated finance or generic prompt engineering.
+description: Use when the user asks how to reduce OpenClaw API costs, improve agent efficiency, or control token usage, and needs a practical operating guide or checklist. Also use when the user wants AI to know it can consult related OpenClaw cost-control notes or project materials. Do not use for unrelated finance or generic prompt engineering.
 ---
 
 # OpenClaw Cost Control
